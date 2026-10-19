@@ -2,3 +2,6 @@
 Thumbs.db
 *.csv
 *.xlsx
+salidas/
+.Rhistory
+.RData
