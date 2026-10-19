@@ -45,9 +45,9 @@ Cada gráfico se eligió por el tipo de dato que representa, no por estética.
 | 4. Proyección | Línea observada + línea estimada con abanico del 80%, rotulado «Estimación» | Serie temporal con incertidumbre | La banda muestra que el pronóstico es un rango y no un punto |
 | 5. Recomendaciones | Lista numerada corta, cada una con su evidencia | Texto | Es el único bloque donde un gráfico no aporta información |
 
-**Por qué MAE y RMSE y no AIC/BIC.** MAE y RMSE se calculan sobre el mismo conjunto de prueba para los cinco modelos, así que son comparables. AIC y BIC solo existen para ARIMA y ETS y miden ajuste en entrenamiento. MAE es el error promedio en viajeros por mes; RMSE penaliza más los errores grandes.
+**Por qué MAE y RMSE y no AIC/BIC.** Dentro de cada serie, MAE y RMSE se calculan sobre el mismo conjunto de prueba para los cinco modelos, así que son comparables. El script solo reporta AIC y BIC para ARIMA y ETS; no son métricas de error sobre prueba y no se usarán para ordenar algoritmos. Además, cuando ARIMA usa Box-Cox y ETS usa la escala original, sus AIC/BIC reportados no deben compararse directamente sin un tratamiento consistente de la transformación. MAE es el error absoluto promedio en viajeros por mes; RMSE penaliza más los errores grandes. El ganador del script se selecciona por menor RMSE.
 
-**Fechas de contexto.** La infografía anotará los meses de pico y valle tomados de la descomposición estacional de cada serie y, cuando coincidan, las fechas de contexto (por ejemplo Semana Santa, bono 14 en julio y aguinaldo en diciembre).
+**Fechas de contexto.** La infografía anotará los meses de pico y valle tomados de la descomposición estacional de cada serie y, cuando coincidan, las fechas de contexto (por ejemplo Semana Santa, bono 14 en julio y aguinaldo en diciembre). Estas coincidencias no demuestran causalidad. Semana Santa cambia de fecha entre marzo y abril; un patrón mensual no permite atribuirle por sí solo un efecto específico.
 
 ## 4. Paleta de colores
 
@@ -99,16 +99,16 @@ Las barras parten siempre de cero, porque su longitud representa el valor. Se us
 
 ## 7. Fidelidad de los datos
 
-Toda cifra de la infografía sale del Laboratorio 1 (Grupo 6, 26 de julio de 2026): histórico mensual de 161,036 registros, de enero de 2009 a junio de 2026, con 7 series. Aquí van las cifras que se usarán y los cuidados para que los gráficos no mientan.
+La fuente analítica es el Laboratorio 1 (Grupo 6, 26 de julio de 2026): una base de 161,036 registros agregados que cubre de enero de 2009 a junio de 2026, a partir de la cual se construyeron 7 series mensuales. El número de registros no equivale al número de viajeros. Las tablas siguientes se cotejaron con el PDF del laboratorio, pero aún no se han reproducido sus cálculos: falta el archivo Excel de entrada. La trazabilidad y las discrepancias con el Rmd están documentadas en `docs/validacion_evidencia.md`.
 
 ### KPIs propuestos
 
 | KPI | Cifra | Origen en el Laboratorio 1 | Estado |
 | --- | --- | --- | --- |
 | Pico anual prepandemia (2019) | ≈ 4.7 millones de viajeros | Barras anuales del EDA | Leído del gráfico; calcular el valor exacto con el script |
-| Caída 2019→2020 (serie general) | −73.0% | Tabla de indicadores | Exacto |
+| Caída 2019→2020 (serie general) | −73.0% | Tabla de indicadores, PDF p. 25 | Reportado y redondeado a un decimal; pendiente de reproducir |
 | Recuperación en 2022 | ≈ 4.3 millones de viajeros (≈ 92% del pico de 2019) | Barras anuales del EDA | Leído del gráfico; calcular el valor exacto con el script |
-| Error medio del mejor modelo (serie general) | 97,590 viajeros por mes (Prophet, MAE) | Comparación de modelos | Exacto (97,589.88) |
+| Error medio del mejor modelo (serie general) | 97,590 viajeros por mes (Prophet, MAE) | Comparación de modelos, PDF p. 12 | Reportado con dos decimales (97,589.88); pendiente de reproducir |
 
 ### Comparación de modelos en la serie general
 
@@ -144,19 +144,19 @@ Toda cifra de la infografía sale del Laboratorio 1 (Grupo 6, 26 de julio de 202
 | Vía Terrestre | 0.387 | 0.818 | 0.517 | −73.6% |
 | El Salvador | 0.318 | 0.763 | 0.548 | −74.9% |
 
-Las respuestas del cuadrante: mayor estacionalidad, Guatemala (0.793); mayor tendencia, Guatemala (0.928); mayor volatilidad, Vía Marítima (0.868); más golpeada por la pandemia, El Salvador (−74.9%) entre las series comparables.
+Según los indicadores publicados, Guatemala tiene la mayor fuerza estacional (0.793) y fuerza de tendencia (0.928); Vía Marítima tiene la mayor volatilidad relativa (CV 0.868); El Salvador presenta la mayor caída 2019→2020 (−74.9%) entre las seis series con ese indicador disponible. Son comparaciones descriptivas de las ventanas de entrenamiento originales, no de un periodo común. **La pregunta de mayor crecimiento sigue pendiente:** la fuerza de tendencia mide cuánto domina ese componente frente al residuo, no su dirección ni su tasa de crecimiento. Se calculará una medida explícita de crecimiento sobre un periodo común y se distinguirá de los indicadores originales.
 
 ### Cuidados para que los gráficos no mientan
 
 - **2026 está incompleto.** La barra anual de 2026 (≈ 1.68 millones) cubre solo enero a junio. Se rotulará «ene–jun 2026» o se comparará con el mismo semestre de otros años.
-- **Guatemala no es comparable en todo.** Su entrenamiento termina en septiembre de 2018, antes de la pandemia, así que su caída es N/D y sus indicadores no incluyen 2020. La pregunta «más golpeada» se responde solo entre las 6 series comparables, y así se rotula.
+- **Guatemala no es comparable en todo.** Su entrenamiento termina en septiembre de 2018, antes de la pandemia, así que su caída es N/D en la tabla original y sus indicadores de entrenamiento no incluyen 2020. Esto no significa que la serie completa termine en 2018: el gráfico de prueba incluye la pandemia. Se comprobará la cobertura completa al cargar el Excel. La pregunta «más golpeada» se responde por ahora solo entre las seis series con caída publicada, y así se rotula.
 - **Las caídas son parecidas.** Las series comparables cayeron entre −72% y −75%, salvo Vía Marítima (−67.9%). El Salvador (−74.9%) apenas supera a las demás, por lo que no se presentará como una diferencia dramática.
 - **El error depende de la escala.** El MAE de Vía Marítima (858) y el de la serie general (97,590) no se pueden poner en un mismo gráfico sin normalizar. Dentro de cada serie sí son comparables; entre series se usará el error relativo a la media mensual, que se calcula con el script.
 - **«Casi el doble» no es exacto.** El Laboratorio 1 dice que la volatilidad de Vía Marítima (0.868) es casi el doble que la siguiente, pero El Salvador tiene 0.548, y 0.868 es alrededor de 58% más. Se mostrará el valor, no esa frase.
 - **La fuerza de tendencia no mide la recuperación.** Se calculó sobre la ventana de entrenamiento (termina en marzo de 2021 en casi todas las series y en septiembre de 2018 en Guatemala). Por eso no se usa para afirmar qué serie se recuperó mejor.
 - **El error del ganador es relevante.** Un MAE de 97,590 sobre niveles mensuales típicos de 250 mil a 400 mil no es pequeño; por eso la proyección se muestra con su abanico y el rótulo «Estimación».
-- **Falta el intervalo de confianza.** El Laboratorio 1 no calculó intervalos. Se generarán con Prophet (80% por defecto) en el script de la infografía y se rotularán con su nivel.
-- **Valores imposibles.** Algunos ARIMA predicen viajeros negativos (Vía Aérea, Estados Unidos). No se mostrarán.
+- **El intervalo no fue presentado ni conservado.** El Rmd llama a `predict()` de Prophet, que normalmente devuelve `yhat_lower` y `yhat_upper` con nivel de 80% por defecto, pero solo extrae `yhat` para el gráfico y las métricas. Se reproducirá la predicción sobre las fechas exactas de prueba, se conservarán los límites y se rotulará «Estimación: intervalo de predicción del 80%». No se fabricará la banda a partir del MAE o RMSE.
+- **Valores imposibles.** El PDF muestra predicciones negativas de ARIMA para Vía Aérea y Estados Unidos. El gráfico del ganador no necesita incluir esas líneas, pero sus errores sí permanecen en la comparación de modelos. No se recortarán predicciones ni límites a cero silenciosamente, pues eso modificaría el resultado o su interpretación.
 - **Lo que el Laboratorio 1 solo supone.** La explicación de que Vía Marítima cayó menos «por los cruceros» es una hipótesis («probablemente»); no se afirmará como hecho. La categoría «tipo de viajero» cambió de criterio entre 2022 y 2023, así que no se usa para tendencias, y el país «Guatemala» agrupa registros fronterizos e intrarregionales, no turistas extranjeros.
 
 ## 8. Recomendaciones estratégicas para INGUAT
@@ -165,9 +165,9 @@ Cada recomendación se deriva de un resultado del Laboratorio 1 y se mostrará e
 
 | # | Recomendación | Evidencia |
 | --- | --- | --- |
-| 1 | Planificar personal e infraestructura con un calendario mensual basado en la estacionalidad | Todas las series tienen un patrón estacional que se repite cada año (fuerza estacional de 0.318 a 0.793); en Guatemala, repetir el mismo mes del año anterior (Seasonal Naive) fue el mejor método |
+| 1 | Planificar personal e infraestructura con un calendario mensual basado en la estacionalidad | Las series muestran un componente estacional en el entrenamiento (fuerza de 0.318 a 0.793); Seasonal Naive fue el mejor modelo para Guatemala en la prueba. En pronósticos de varios años, este método repite el último ciclo anual observado en entrenamiento, no utiliza los valores reales posteriores |
 | 2 | Concentrar el monitoreo y la promoción en los puntos de mayor volumen | Tres países (El Salvador, Guatemala, Estados Unidos), dos regiones (América del Centro y del Norte), la vía terrestre y la aérea, y las fronteras La Aurora, Valle Nuevo y San Cristóbal concentran la mayoría de los registros |
-| 3 | Mantener un modelo por segmento, reentrenarlo tras cada choque y usar el abanico de la proyección como semáforo: si la llegada real sale del intervalo, revisar capacidad o campaña | Ningún modelo gana en todo: Prophet ganó en 3 de 7 series (General, El Salvador, Vía Terrestre), Holt-Winters en 2 (Estados Unidos, Vía Aérea), Seasonal Naive en Guatemala, y en Vía Marítima hubo empate entre ARIMA y Seasonal Naive |
+| 3 | Mantener un modelo por segmento, reevaluarlo tras cada choque y monitorear errores y salidas persistentes del intervalo antes de revisar capacidad o campañas | Ningún modelo gana en todo: Prophet ganó en 3 de 7 series (General, El Salvador, Vía Terrestre), Holt-Winters en 2 (Estados Unidos, Vía Aérea), Seasonal Naive en Guatemala, y en Vía Marítima hubo empate a la precisión publicada entre ARIMA y Seasonal Naive. Un intervalo del 80% admite observaciones fuera de él; una salida aislada no prueba un cambio estructural |
 | 4 | Tratar la Vía Marítima como una serie de vigilancia mensual y no confiar en proyecciones a largo plazo | Tiene la mayor volatilidad (CV 0.868), la menor fuerza de tendencia (0.196) y residuos autocorrelacionados en su ARIMA (Ljung-Box p ≈ 0.0000032) |
 | 5 | Lanzar campañas dirigidas a los mercados principales en los meses de menor afluencia, para aplanar los picos | La estacionalidad es marcada y la demanda está concentrada en pocos mercados, lo que permite apuntar a segmentos concretos en meses concretos |
 
