@@ -1,0 +1,913 @@
+---
+title: "Lab Series de Tiempo"
+author: "Grupo 6"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Laboratorio 1 Series de Tiempo
+
+## EDA
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readxl)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(skimr)
+library(naniar)
+library(scales)
+library(forecast)
+library(tseries)
+library(urca)
+library(prophet)
+library(Metrics)
+
+options(scipen = 999)
+```
+
+```{r, echo=FALSE}
+# Cargar datos
+
+setwd("D:/Data Science/Lab-Series-de-Tiempo")
+data <- read_excel("Base_Migracion_2009-2026jun.xlsx")
+migracion <- read_excel("Base_Migracion_2009-2026jun.xlsx") %>%
+  clean_names()
+
+# Revisar nombres de variables
+names(migracion)
+
+# Crear una variable de fecha
+migracion <- migracion %>%
+  mutate(
+    fecha = ymd(paste(ano, mes_cod, "01"))
+  )
+```
+
+### Comportamiento temporal del número de viajeros
+
+```{r, echo= FALSE}
+viajeros_tiempo <- migracion %>%
+  group_by(fecha) %>%
+  summarise(
+    total_viajeros = sum(viajero, na.rm = TRUE)
+  )
+
+head(viajeros_tiempo)
+```
+
+```{r, echo=FALSE}
+ggplot(viajeros_tiempo,
+       aes(fecha, total_viajeros)) +
+  geom_line(color = "steelblue", linewidth = 1) +
+  labs(
+    title = "Evolución temporal del número de viajeros",
+    x = "Fecha",
+    y = "Número de viajeros"
+  ) +
+  theme_minimal()
+```
+
+```{r, echo=FALSE}
+viajeros_anio <- migracion %>%
+  group_by(ano) %>%
+  summarise(
+    viajeros = sum(viajero)
+  )
+
+ggplot(viajeros_anio,
+       aes(factor(ano), viajeros)) +
+  geom_col(fill = "steelblue") +
+  labs(
+    title = "Viajeros por año",
+    x = "Año",
+    y = "Viajeros"
+  ) +
+  theme_minimal()
+```
+
+### Comportamiento durante y después de la pandemia
+
+```{r, echo=FALSE}
+pandemia <- migracion %>%
+  mutate(periodo = case_when(
+    ano <= 2019 ~ "Pre-pandemia (<=2019)",
+    ano %in% c(2020, 2021) ~ "Pandemia (2020-2021)",
+    ano >= 2022 ~ "Post-pandemia (>=2022)"
+  )) %>%
+  group_by(periodo, ano) %>%
+  summarise(viajeros = sum(viajero, na.rm = TRUE), .groups = "drop")
+
+ggplot(pandemia, aes(factor(ano), viajeros, fill = periodo)) +
+  geom_col() +
+  labs(
+    title = "Viajeros por año y periodo (pre/durante/post pandemia)",
+    x = "Año", y = "Viajeros", fill = "Periodo"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r, echo=FALSE}
+caida_pandemia <- migracion %>%
+  filter(ano %in% c(2019, 2020)) %>%
+  group_by(ano) %>%
+  summarise(viajeros = sum(viajero, na.rm = TRUE))
+
+pct_caida <- round(
+  (caida_pandemia$viajeros[caida_pandemia$ano == 2020] /
+     caida_pandemia$viajeros[caida_pandemia$ano == 2019] - 1) * 100, 1
+)
+
+pct_caida
+```
+Entre 2019 y 2020 el número de viajeros cayó aproximadamente un 73%, coincidiendo con las restricciones de movilidad y el cierre de fronteras ocasionados por la pandemia de COVID-19. En el gráfico se observa una disminución muy marcada durante 2020, seguida de una recuperación gradual en 2021. A partir de 2022 el número de viajeros aumenta de forma significativa, aunque todavía no alcanza el máximo registrado en 2019. En los años 2023, 2024 y 2025 la demanda turística se mantiene estable y muy por encima de los niveles de la pandemia, lo que evidencia una recuperación importante, aunque aún ligeramente inferior al nivel prepandemia.
+
+### Países con mayor cantidad de viajeros
+
+```{r, echo=FALSE}
+top_paises <- migracion %>%
+  group_by(pais) %>%
+  summarise(
+    viajeros = sum(viajero)
+  ) %>%
+  arrange(desc(viajeros)) %>%
+  slice(1:10)
+
+ggplot(top_paises,
+       aes(reorder(pais, viajeros), viajeros)) +
+  geom_col(fill = "darkgreen") +
+  coord_flip() +
+  labs(
+    title = "10 países con mayor número de viajeros",
+    x = "",
+    y = "Viajeros"
+  ) +
+  theme_minimal()
+```
+
+Vemos que los 3 países con mayor cantidad de viajeros son El Salvador,
+Guatemala y Estados Unidos. Estos paises contienen la mayoría de datos.
+
+### Regiones con mayor cantidad de viajeros
+
+```{r, echo=FALSE}
+regiones <- migracion %>%
+  group_by(region) %>%
+  summarise(
+    viajeros = sum(viajero)
+  ) %>%
+  arrange(desc(viajeros)) %>%
+  slice(1:5)
+
+ggplot(regiones,
+       aes(reorder(region, viajeros), viajeros)) +
+  geom_col(fill = "orange") +
+  coord_flip() +
+  labs(
+    title = "5 regiones con mayor cantidad de viajeros",
+    x = "",
+    y = "Viajeros"
+  ) +
+  theme_minimal()
+```
+
+### Vías de ingreso y fronteras más utilizadas
+
+#### Vías de Ingreso
+
+```{r, echo=FALSE}
+vias <- migracion %>%
+  group_by(via) %>%
+  summarise(
+    viajeros = sum(viajero)
+  ) %>%
+  arrange(desc(viajeros))
+
+ggplot(vias,
+       aes(reorder(via, viajeros), viajeros)) +
+  geom_col(fill = "royalblue") +
+  coord_flip() +
+  labs(
+    title = "Vías de ingreso",
+    x = "",
+    y = "Viajeros"
+  ) +
+  theme_minimal()
+```
+
+#### Fronteras
+
+```{r, echo=FALSE}
+fronteras <- migracion %>%
+  group_by(frontera) %>%
+  summarise(
+    viajeros = sum(viajero)
+  ) %>%
+  arrange(desc(viajeros))
+
+ggplot(fronteras,
+       aes(reorder(frontera, viajeros), viajeros)) +
+  geom_col(fill = "purple") +
+  coord_flip() +
+  labs(
+    title = "Fronteras más utilizadas",
+    x = "",
+    y = "Viajeros"
+  ) +
+  theme_minimal()
+```
+
+### Analisis de valores faltantes, duplicantes y valores atípicos
+
+#### Faltantes
+
+```{r, echo=FALSE}
+colSums(is.na(migracion))
+```
+
+#### Duplicados
+
+```{r, echo=FALSE}
+sum(duplicated(migracion))
+```
+
+#### Valores Atipicos
+
+```{r, echo=FALSE}
+ggplot(migracion,
+       aes(x = region, y = viajero)) +
+  geom_boxplot() +
+  coord_flip()
+```
+
+Se hara un analisis a profundidad de la calidad de los datos y la
+distribución de viajeros en la siguiente sección para poder llegar a
+mejores conclusiones sobre los datos atipicos, de forma preliminar se
+puede indicar que la mayoria de datos parecen agruparse entre el 0 y el
+1, haciendo que cualquier dato arriba del 1 sea analizado como atipico.
+
+## Estadistica Descriptiva y Visualizaciones
+
+```{r, echo=FALSE}
+summary(migracion)
+```
+
+Preliminarmente se respalda parcialmente la teoria de la atipicidad de
+los datos, siendo que, aunque el maximo se encuentra en las decenas
+(casi centenas) de miles, la mediana es apenas de 7.
+
+```{r, echo=FALSE}
+ggplot(migracion,
+       aes(viajero)) +
+  geom_histogram(
+    bins = 40,
+    fill = "steelblue",
+    color = "white"
+  ) +
+  labs(
+    title = "Distribución del número de viajeros",
+    x = "Viajeros",
+    y = "Frecuencia"
+  ) +
+  theme_minimal()
+```
+
+Nuevamente, un histograma de la variable viajeros respalda la hipotesis
+de concentración en datos pequeños.
+
+```{r, echo=FALSE}
+migracion %>%
+  group_by(tipo_de_viajero) %>%
+  summarise(
+    promedio = mean(viajero),
+    mediana = median(viajero),
+    desviacion = sd(viajero),
+    total = sum(viajero)
+  )
+```
+
+### Analisis Final
+
+De todo lo que podemos concluir, consideramos que lo mas importante a
+tomar en cuenta en futuros analisis es la distribución de la columna de
+viajeros. Esto debido a que tener un sesgo positivo tan pronunciado
+puede dificultar el uso de la variable como predictora o en series de
+tiempo, esto se analizará para todos los casos de series de tiempo que
+se haran a lo largo del laboratorio. Ademas de eso, vemos que por
+ejemplo, existen una gran cantidad de categorias para paises de origen
+pero pocos contienen muchos de los datos relevantes. El analisis por
+región tambien determinó que no existe una distribución uniforme o
+parecida a la uniforme para este tipo de datos sino que hay regiones
+dominantes que contienen una gran parte de los datos.
+
+```{r, echo= FALSE}
+rm(fronteras, data, regiones, top_paises, viajeros_anio, viajeros_tiempo, vias, pandemia, caida_pandemia)
+```
+
+## Train/Test
+
+```{r}
+
+crear_ts <- function(df) {
+  ts(
+    df$viajeros,
+    start = c(df$ano[1], df$mes_cod[1]),
+    frequency = 12
+  )
+}
+
+crear_train_test <- function(data, ..., train_size = 0.7) {
+
+  # Construir serie mensual
+  serie_df <- data %>%
+  filter(...) %>%
+  group_by(ano, mes_cod, fecha) %>%
+  summarise(
+    viajeros = sum(viajero, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(fecha) %>%
+  complete(
+    fecha = seq(min(fecha), max(fecha), by = "month"),
+    fill = list(viajeros = 0)
+  ) %>%
+  mutate(
+    ano = as.integer(format(fecha, "%Y")),
+    mes_cod = as.integer(format(fecha, "%m"))
+  ) %>%
+  select(ano, mes_cod, fecha, viajeros)
+
+  # División cronológica
+  n <- nrow(serie_df)
+  n_train <- floor(n * train_size)
+
+  train_df <- serie_df[1:n_train, ]
+  test_df  <- serie_df[(n_train + 1):n, ]
+
+  # Devolver todo organizado
+  list(
+    train = list(
+      df = train_df,
+      ts = crear_ts(train_df)
+    ),
+
+    test = list(
+      df = test_df,
+      ts = crear_ts(test_df)
+    )
+  )
+}
+```
+
+```{r}
+general <- crear_train_test(migracion)
+
+el_salvador <- crear_train_test(
+  migracion,
+  pais == "El Salvador"
+)
+
+guatemala <- crear_train_test(
+  migracion,
+  pais == "Guatemala"
+)
+
+estados_unidos <- crear_train_test(
+  migracion,
+  pais == "Estados Unidos de América"
+)
+
+aerea <- crear_train_test(
+  migracion,
+  via == "Aérea"
+)
+
+terrestre <- crear_train_test(
+  migracion,
+  via == "Terrestre"
+)
+
+maritima <- crear_train_test(
+  migracion,
+  via == "Marítima"
+)
+```
+
+```{r}
+series <- list(
+  "General" = general,
+  "El Salvador" = el_salvador,
+  "Guatemala" = guatemala,
+  "Estados Unidos" = estados_unidos,
+  "Vía Aérea" = aerea,
+  "Vía Terrestre" = terrestre,
+  "Vía Marítima" = maritima
+)
+```
+
+## Analisis de las series
+
+La siguiente función analiza cada serie de forma completa: describe
+inicio/fin/frecuencia, descompone la serie, evalúa si necesita
+transformación (Box-Cox) y diferenciación para ser estacionaria en media
+(ACF, prueba de Dickey-Fuller Aumentada, `ndiffs`/`nsdiffs`), ajusta
+varios modelos ARIMA candidatos y se queda con el mejor según AIC/BIC, y
+además ajusta modelos con ETS (suavizamiento exponencial), Holt-Winters,
+Seasonal Naive y Prophet. Finalmente genera el forecast de cada modelo
+sobre el conjunto de prueba y calcula MAE y RMSE para poder compararlos.
+
+```{r}
+analizar_serie_completa <- function(serie, nombre) {
+
+  ts_train <- serie$train$ts
+  ts_test  <- serie$test$ts
+  h <- length(ts_test)
+
+  cat("\n=========================================\n")
+  cat(nombre, "\n")
+  cat("=========================================\n")
+  cat("Inicio:", start(ts_train), " Fin:", end(ts_train),
+      " Frecuencia:", frequency(ts_train), "\n\n")
+
+  # ------------------------------------------------------------
+  # Descomposición y transformación
+  # ------------------------------------------------------------
+  descomp <- decompose(ts_train)
+  plot(descomp)
+
+  lambda <- BoxCox.lambda(ts_train)
+  cat("Lambda Box-Cox sugerido:", round(lambda, 3), "\n")
+  # Regla práctica: si lambda esta lejos de 1 (p.ej. <0.5 o >1.5)
+  # conviene transformar. lambda ~0 sugiere log().
+  usar_transformacion <- lambda < 0.75
+  cat("¿Aplicar transformación Box-Cox?:", usar_transformacion, "\n")
+
+  ts_mod <- if (usar_transformacion) BoxCox(ts_train, lambda) else ts_train
+
+  # ------------------------------------------------------------
+  # Estacionariedad en media: ACF + ADF + número de diferencias
+  # ------------------------------------------------------------
+  old_par <- par(no.readonly = TRUE)
+  par(mfrow = c(1, 2))
+  acf(ts_mod, main = paste("ACF -", nombre))
+  pacf(ts_mod, main = paste("PACF -", nombre))
+  par(old_par)
+
+  adf_res <- adf.test(ts_mod)
+  cat("ADF p-value (sin diferenciar):", round(adf_res$p.value, 5), "\n")
+
+  nd  <- ndiffs(ts_mod)          # diferenciación regular sugerida
+  nsd <- nsdiffs(ts_mod)         # diferenciación estacional sugerida
+  cat("Diferenciaciones regulares sugeridas (d):", nd, "\n")
+  cat("Diferenciaciones estacionales sugeridas (D):", nsd, "\n")
+
+  # ------------------------------------------------------------
+  # Varios modelos ARIMA candidatos
+  # ------------------------------------------------------------
+  modelo_auto <- auto.arima(ts_mod, seasonal = TRUE, stepwise = FALSE,
+                             approximation = FALSE)
+
+  candidatos <- list(
+    auto        = modelo_auto,
+    simple      = tryCatch(Arima(ts_mod, order = c(1, nd, 1),
+                                  seasonal = list(order = c(0, nsd, 1),
+                                                   period = 12)),
+                            error = function(e) NULL),
+    ar_mayor    = tryCatch(Arima(ts_mod, order = c(2, nd, 1),
+                                  seasonal = list(order = c(1, nsd, 1),
+                                                   period = 12)),
+                            error = function(e) NULL),
+    ma_mayor    = tryCatch(Arima(ts_mod, order = c(1, nd, 2),
+                                  seasonal = list(order = c(0, nsd, 1),
+                                                   period = 12)),
+                            error = function(e) NULL)
+  )
+  candidatos <- candidatos[!sapply(candidatos, is.null)]
+
+  tabla_arima <- data.frame(
+    modelo = names(candidatos),
+    AIC = sapply(candidatos, AIC),
+    BIC = sapply(candidatos, BIC)
+  ) %>% arrange(AIC)
+
+  print(tabla_arima)
+
+  mejor_arima_nombre <- tabla_arima$modelo[1]
+  mejor_arima <- candidatos[[mejor_arima_nombre]]
+
+  cat("\nMejor modelo ARIMA por AIC:", mejor_arima_nombre, "\n")
+  print(mejor_arima)
+  forecast::checkresiduals(mejor_arima)
+
+  # ------------------------------------------------------------
+  # ETS (suavizamiento exponencial)
+  # ------------------------------------------------------------
+  modelo_ets <- ets(ts_train)
+  cat("\nModelo ETS:", modelo_ets$method, "\n")
+  cat("AIC ETS:", round(AIC(modelo_ets), 2), "\n")
+
+  # ------------------------------------------------------------
+  # Holt-Winters
+  # ------------------------------------------------------------
+  modelo_hw <- HoltWinters(ts_train)
+
+  # ------------------------------------------------------------
+  # Seasonal naive
+  # ------------------------------------------------------------
+  modelo_snaive <- snaive(ts_train, h = h)
+
+  # ------------------------------------------------------------
+  # Prophet (requiere data.frame con columnas ds, y)
+  # ------------------------------------------------------------
+  df_prophet <- data.frame(
+    ds = as.Date(serie$train$df$fecha),
+    y  = serie$train$df$viajeros
+  )
+  modelo_prophet <- prophet(df_prophet, yearly.seasonality = TRUE,
+                             weekly.seasonality = FALSE,
+                             daily.seasonality = FALSE)
+  futuro_prophet <- make_future_dataframe(modelo_prophet, periods = h,
+                                           freq = "month")
+  pred_prophet <- predict(modelo_prophet, futuro_prophet)
+  fc_prophet <- tail(pred_prophet$yhat, h)
+
+  # ------------------------------------------------------------
+  # Forecast de cada modelo sobre el conjunto de prueba
+  # ------------------------------------------------------------
+  fc_arima <- forecast(mejor_arima, h = h)
+  if (usar_transformacion) {
+    fc_arima_vals <- InvBoxCox(fc_arima$mean, lambda)
+  } else {
+    fc_arima_vals <- fc_arima$mean
+  }
+
+  fc_ets    <- forecast(modelo_ets, h = h)$mean
+  fc_hw     <- forecast(modelo_hw, h = h)$mean
+  fc_snaive <- modelo_snaive$mean
+
+  # ------------------------------------------------------------
+  # Métricas: MAE y RMSE contra el test real
+  # ------------------------------------------------------------
+  real <- as.numeric(ts_test)
+
+  metricas <- data.frame(
+    modelo = c("ARIMA", "ETS", "Holt-Winters", "Seasonal Naive", "Prophet"),
+    MAE  = c(
+      mae(real, as.numeric(fc_arima_vals)),
+      mae(real, as.numeric(fc_ets)),
+      mae(real, as.numeric(fc_hw)),
+      mae(real, as.numeric(fc_snaive)),
+      mae(real, fc_prophet)
+    ),
+    RMSE = c(
+      rmse(real, as.numeric(fc_arima_vals)),
+      rmse(real, as.numeric(fc_ets)),
+      rmse(real, as.numeric(fc_hw)),
+      rmse(real, as.numeric(fc_snaive)),
+      rmse(real, fc_prophet)
+    ),
+    AIC = c(AIC(mejor_arima), AIC(modelo_ets), NA, NA, NA),
+    BIC = c(BIC(mejor_arima), BIC(modelo_ets), NA, NA, NA)
+  ) %>% arrange(RMSE)
+
+  print(metricas)
+
+  # Gráfico comparativo: real vs predicciones de todos los modelos
+  fechas_test <- serie$test$df$fecha
+  comparacion <- data.frame(
+    fecha = fechas_test,
+    real = real,
+    ARIMA = as.numeric(fc_arima_vals),
+    ETS = as.numeric(fc_ets),
+    HoltWinters = as.numeric(fc_hw),
+    SeasonalNaive = as.numeric(fc_snaive),
+    Prophet = fc_prophet
+  ) %>%
+    pivot_longer(-fecha, names_to = "serie", values_to = "valor")
+
+  print(
+    ggplot(comparacion, aes(fecha, valor, color = serie)) +
+      geom_line(linewidth = 1) +
+      labs(title = paste("Predicción vs real -", nombre),
+           x = "Fecha", y = "Viajeros", color = "") +
+      theme_minimal()
+  )
+
+  invisible(list(
+    info = list(inicio = start(ts_train), fin = end(ts_train),
+                frecuencia = frequency(ts_train)),
+    descomposicion = descomp,
+    lambda = lambda,
+    usar_transformacion = usar_transformacion,
+    nd = nd, nsd = nsd,
+    tabla_arima = tabla_arima,
+    mejor_arima = mejor_arima,
+    ets = modelo_ets,
+    hw = modelo_hw,
+    snaive = modelo_snaive,
+    prophet = modelo_prophet,
+    metricas = metricas,
+    mejor_modelo_global = metricas$modelo[1]
+  ))
+}
+```
+
+```{r}
+resultados <- Map(analizar_serie_completa, series, names(series))
+names(resultados) <- names(series)
+```
+
+# Serie: General
+
+### 1. Inspección visual
+
+La serie General muestra una tendencia creciente entre 2009 y 2019, acompañada de una estacionalidad anual claramente marcada. En 2020 ocurre una caída abrupta producto de la pandemia de COVID-19, seguida por una recuperación gradual durante 2021.
+
+### 2. Descomposición
+
+La descomposición confirma la existencia de una tendencia creciente y una fuerte componente estacional. Esto indica que el flujo de viajeros presenta incrementos sostenidos en el largo plazo y un patrón que se repite cada año. La componente aleatoria refleja el fuerte choque ocasionado por la pandemia.
+
+### 3. Transformación
+
+Se aplicó una transformación Box-Cox (0.675), ya que el valor sugerido es menor que 1. Esta transformación permitió estabilizar la varianza y mejorar el desempeño del modelo.
+
+### 4. Estacionariedad
+
+La serie no era estacionaria en media (ADF p-value = 0.3928 > 0.05). El comportamiento del ACF también mostraba persistencia, por lo que fue necesaria una diferenciación regular (d = 1). No fue necesaria diferenciación estacional (D = 0).
+
+### 5. Selección del ARIMA
+
+El modelo seleccionado fue **ARIMA(2,1,1)(1,0,1)[12]**. La diferenciación elimina la tendencia, mientras que los términos AR y MA representan la dependencia observada en la ACF y PACF. La parte estacional captura adecuadamente el patrón anual. La propuesta de `auto.arima()` fue consistente con el comportamiento de la serie.
+
+### 6. Mejor modelo ARIMA
+
+El modelo **ARIMA(2,1,1)(1,0,1)[12]** obtuvo el menor AIC (2373.99). Además, el test de Ljung-Box (p = 0.912) indica residuos independientes, por lo que el modelo presenta un buen ajuste.
+
+### 7. Mejor modelo global
+
+El mejor modelo de predicción fue **Prophet**, ya que obtuvo el menor MAE (97,589.88) y RMSE (107,976.80). Probablemente logró adaptarse mejor al cambio estructural ocasionado por la pandemia.
+
+---
+
+# Serie: El Salvador
+
+### 1. Inspección visual
+
+La serie presenta una tendencia creciente hasta 2020, con un patrón estacional relativamente estable. Durante la pandemia se observa una reducción importante del número de viajeros.
+
+### 2. Descomposición
+
+La descomposición evidencia una tendencia positiva y una estacionalidad anual. Esto indica que la demanda de viajeros mantiene un comportamiento repetitivo cada año y un crecimiento sostenido antes de la pandemia.
+
+### 3. Transformación
+
+Se aplicó Box-Cox (0.521), debido a que el valor sugerido fue inferior a 1, buscando estabilizar la variabilidad de la serie.
+
+### 4. Estacionariedad
+
+La serie no era estacionaria (ADF p-value = 0.2677). Fue necesaria una diferenciación regular (d = 1), mientras que no fue necesaria diferenciación estacional (D = 0).
+
+### 5. Selección del ARIMA
+
+El modelo seleccionado fue **ARIMA(0,1,0)(1,0,1)[12]**, que incorpora únicamente componentes estacionales, lo cual es consistente con una serie cuya principal dependencia proviene de la estacionalidad anual.
+
+### 6. Mejor modelo ARIMA
+
+El modelo obtuvo el menor AIC (1755.69) y el test de Ljung-Box (p = 0.400) confirma que los residuos se comportan como ruido blanco.
+
+### 7. Mejor modelo global
+
+El mejor desempeño predictivo correspondió a **Prophet**, con el menor MAE (53,252.87) y RMSE (56,540.06), probablemente por su capacidad para adaptarse a cambios de tendencia.
+
+---
+
+# Serie: Guatemala
+
+### 1. Inspección visual
+
+La serie muestra un crecimiento sostenido durante todo el período analizado y una marcada estacionalidad. No presenta el efecto de la pandemia porque finaliza en 2018.
+
+### 2. Descomposición
+
+La tendencia aumenta de forma constante y la estacionalidad es una de las más fuertes entre las series analizadas, indicando un comportamiento muy regular año tras año.
+
+### 3. Transformación
+
+Se aplicó Box-Cox (0.279), debido a la alta variabilidad de la serie.
+
+### 4. Estacionariedad
+
+Aunque el ADF presenta un p-value de 0.0306 (< 0.05), el procedimiento automático sugirió aplicar una diferenciación regular (d = 1) y una diferenciación estacional (D = 1), debido a la fuerte tendencia y estacionalidad observadas.
+
+### 5. Selección del ARIMA
+
+El modelo seleccionado fue **ARIMA(0,1,1)(2,1,0)[12]**, incorporando diferenciación estacional para eliminar el patrón anual y componentes SAR para modelar la dependencia entre años.
+
+### 6. Mejor modelo ARIMA
+
+Este modelo obtuvo el menor AIC (454.07). El test de Ljung-Box (p = 0.507) indica residuos aleatorios, validando el ajuste.
+
+### 7. Mejor modelo global
+
+El modelo con menor error fue **Seasonal Naive**, con MAE de 56,259.91 y RMSE de 69,513.09. Debido a la fuerte estacionalidad de esta serie, repetir el valor del mismo mes del año anterior resulta altamente efectivo.
+
+---
+
+# Serie: Estados Unidos
+
+### 1. Inspección visual
+
+La serie presenta crecimiento moderado y una estacionalidad claramente definida hasta la caída ocasionada por la pandemia.
+
+### 2. Descomposición
+
+La tendencia es creciente y la componente estacional permanece estable durante casi todo el período. La pandemia produce una ruptura importante en la tendencia.
+
+### 3. Transformación
+
+No fue necesario aplicar Box-Cox (0.856), ya que la varianza era suficientemente estable.
+
+### 4. Estacionariedad
+
+El ADF (p = 0.4089) indicó que la serie no era estacionaria. Se aplicó una diferenciación regular (d = 1) y una diferenciación estacional (D = 1).
+
+### 5. Selección del ARIMA
+
+Se seleccionó **ARIMA(1,1,1)(0,1,2)[12]**, incorporando términos estacionales para modelar adecuadamente la dependencia anual.
+
+### 6. Mejor modelo ARIMA
+
+Obtuvo el menor AIC (2685.05) y residuos adecuados (Ljung-Box p = 0.965), indicando un excelente ajuste.
+
+### 7. Mejor modelo global
+
+El modelo con mejor capacidad predictiva fue **Holt-Winters**, con el menor MAE (23,097.58) y RMSE (25,168.66), probablemente debido a la estabilidad de la tendencia y la estacionalidad.
+
+---
+
+# Serie: Vía Aérea
+
+### 1. Inspección visual
+
+La serie muestra crecimiento sostenido, una fuerte estacionalidad y una caída pronunciada durante 2020.
+
+### 2. Descomposición
+
+La descomposición evidencia una tendencia creciente y un patrón estacional muy claro, reflejando el comportamiento periódico del transporte aéreo.
+
+### 3. Transformación
+
+No se aplicó Box-Cox (1.109), ya que la transformación no aportaba mejoras significativas.
+
+### 4. Estacionariedad
+
+La serie no era estacionaria (ADF p = 0.4233), por lo que se aplicó una diferenciación regular (d = 1). No fue necesaria diferenciación estacional.
+
+### 5. Selección del ARIMA
+
+El modelo **ARIMA(0,1,2)(2,0,0)[12]** captura la dependencia de corto plazo mediante términos MA y la dependencia anual mediante términos SAR.
+
+### 6. Mejor modelo ARIMA
+
+Fue el modelo con menor AIC (3171.26) y residuos adecuados (Ljung-Box p = 0.725).
+
+### 7. Mejor modelo global
+
+El mejor desempeño correspondió a **Holt-Winters**, con MAE de 26,342.67 y RMSE de 31,317.38, gracias a que modela explícitamente tendencia y estacionalidad.
+
+---
+
+# Serie: Vía Terrestre
+
+### 1. Inspección visual
+
+La serie presenta crecimiento gradual y una marcada disminución durante la pandemia, seguida por una recuperación parcial.
+
+### 2. Descomposición
+
+Se observa una tendencia positiva y un patrón estacional estable durante todo el período analizado.
+
+### 3. Transformación
+
+Se aplicó Box-Cox (0.487) para estabilizar la varianza.
+
+### 4. Estacionariedad
+
+El ADF (p = 0.5093) indicó que la serie no era estacionaria. Se aplicó una diferenciación regular (d = 1), sin requerir diferenciación estacional.
+
+### 5. Selección del ARIMA
+
+El modelo seleccionado fue **ARIMA(0,1,0)(2,0,0)[12]**, donde la estructura estacional explica gran parte de la dependencia temporal.
+
+### 6. Mejor modelo ARIMA
+
+Obtuvo el menor AIC (1701.35) y el test de Ljung-Box (p = 0.269) mostró residuos independientes.
+
+### 7. Mejor modelo global
+
+El mejor modelo fue **Prophet**, con el menor MAE (54,308.76) y RMSE (71,306.26), mostrando mayor capacidad para adaptarse a la recuperación posterior a la pandemia.
+
+---
+
+# Serie: Vía Marítima
+
+### 1. Inspección visual
+
+La serie presenta mayor variabilidad que las demás y una fuerte reducción durante la pandemia, seguida por una recuperación irregular.
+
+### 2. Descomposición
+
+Se identifica una estacionalidad marcada, aunque la tendencia es menos estable y la componente aleatoria presenta fluctuaciones importantes, reflejando una mayor volatilidad.
+
+### 3. Transformación
+
+Se aplicó Box-Cox con 0 (transformación logarítmica), debido a la alta variabilidad observada.
+
+### 4. Estacionariedad
+
+La serie no era estacionaria (ADF p = 0.6396). Fue necesaria una diferenciación regular (d = 1), sin diferenciación estacional.
+
+### 5. Selección del ARIMA
+
+El modelo seleccionado fue **ARIMA(0,1,3)(0,0,2)[12]**, incorporando varios términos MA para capturar la dependencia temporal y componentes estacionales.
+
+### 6. Mejor modelo ARIMA
+
+Fue el modelo con menor AIC (2831.74). Sin embargo, el test de Ljung-Box (p < 0.001) indica que los residuos mantienen autocorrelación, por lo que el ajuste no captura completamente la dinámica de la serie.
+
+### 7. Mejor modelo global
+
+El mejor desempeño predictivo fue obtenido por **ARIMA**, empatando prácticamente con Seasonal Naive (MAE = 858.37; RMSE = 1,731.93). Esto sugiere que la serie posee una estructura relativamente simple, aunque con alta volatilidad residual que limita la precisión de cualquier modelo.
+
+## Análisis comparativo entre series
+
+```{r}
+comparar_series <- function(serie, nombre) {
+
+  ts_data <- serie$train$ts
+  descomp <- decompose(ts_data)
+
+  # Fuerza de estacionalidad y tendencia (método fpp2/fpp3)
+  # var(residuo) chico respecto a var(residuo+componente) => componente fuerte
+  var_resid <- var(descomp$random, na.rm = TRUE)
+  fuerza_estacional <- max(0, 1 - var_resid /
+                              var(descomp$random + descomp$seasonal, na.rm = TRUE))
+  fuerza_tendencia  <- max(0, 1 - var_resid /
+                              var(descomp$random + descomp$trend, na.rm = TRUE))
+
+  # Volatilidad: coeficiente de variación de la serie
+  cv <- sd(ts_data) / mean(ts_data)
+
+  # Efecto pandemia: caída 2019 -> 2020 dentro de este subconjunto
+  df <- serie$train$df
+  v2019 <- sum(df$viajeros[df$ano == 2019], na.rm = TRUE)
+  v2020 <- sum(df$viajeros[df$ano == 2020], na.rm = TRUE)
+  caida_pct <- if (v2019 > 0) round((v2020 / v2019 - 1) * 100, 1) else NA
+
+  data.frame(
+    serie = nombre,
+    fuerza_estacional = round(fuerza_estacional, 3),
+    fuerza_tendencia = round(fuerza_tendencia, 3),
+    volatilidad_cv = round(cv, 3),
+    caida_pandemia_pct = caida_pct
+  )
+}
+
+tabla_comparativa <- Map(comparar_series, series, names(series)) %>%
+  bind_rows()
+
+tabla_comparativa %>% arrange(desc(fuerza_estacional))
+```
+
+```{r, echo=FALSE}
+tabla_comparativa %>%
+  pivot_longer(-serie, names_to = "metrica", values_to = "valor") %>%
+  ggplot(aes(reorder(serie, valor), valor, fill = serie)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  facet_wrap(~metrica, scales = "free_x") +
+  labs(title = "Comparación entre series", x = "", y = "") +
+  theme_minimal()
+```
+### 5a. Comparación entre series
+
+- **Mayor fuerza_estacional (más estacionalidad):** **Guatemala** (= 0.80), lo que indica que presenta el patrón estacional más marcado.
+- **Mayor fuerza_tendencia (más crecimiento):** **Guatemala** (= 0.92), siendo la serie con la tendencia de crecimiento más fuerte.
+- **Mayor volatilidad_cv:** **Vía Marítima** (= 0.88), por lo que es la serie con mayores fluctuaciones relativas.
+- **Caída_pandemia_pct más negativa (más afectada por la pandemia):** **Guatemala** (= -73%), seguida muy de cerca por las series **General**, **Vía Aérea**, **Estados Unidos**, **El Salvador** y **Vía Terrestre**, mientras que **Vía Marítima** fue la menos afectada (= -67%).
+
+### 5b. Insights generales para INGUAT
+
+1. **Guatemala** presenta la mayor estacionalidad y la tendencia de crecimiento más fuerte, lo que indica que la demanda turística sigue un patrón estacional bien definido y mantiene un crecimiento sostenido, facilitando la planificación de recursos durante las temporadas de mayor afluencia.
+
+2. La **vía marítima** registra la mayor volatilidad (CV = 0.88), lo que evidencia que el flujo de viajeros por este medio es el más variable y sensible a cambios externos, por lo que requiere un monitoreo constante.
+
+3. La pandemia afectó significativamente a todas las series, con caídas cercanas al **70%**. La serie de **Guatemala** presentó la mayor disminución (= -73%), mientras que la **vía marítima** mostró la menor caída relativa (= -67%), indicando una mayor resiliencia frente al resto de modalidades.
+
+4. Las series **General**, **Vía Aérea** y **Guatemala** muestran valores elevados de **fuerza_tendencia** (= 0.8–0.9), lo que sugiere una recuperación sólida y un crecimiento sostenido del turismo en el periodo posterior a la pandemia.
