@@ -99,15 +99,15 @@ Las barras parten siempre de cero, porque su longitud representa el valor. Se us
 
 ## 7. Fidelidad de los datos
 
-La fuente analítica es el Laboratorio 1 (Grupo 6, 26 de julio de 2026): una base de 161,036 registros agregados que cubre de enero de 2009 a junio de 2026, a partir de la cual se construyeron 7 series mensuales. El número de registros no equivale al número de viajeros. Las tablas siguientes se cotejaron con el PDF del laboratorio, pero aún no se han reproducido sus cálculos: falta el archivo Excel de entrada. La trazabilidad y las discrepancias con el Rmd están documentadas en `docs/validacion_evidencia.md`.
+La fuente analítica es el Laboratorio 1 (Grupo 6, 26 de julio de 2026): una base de 161,036 registros agregados que cubre de enero de 2009 a junio de 2026, a partir de la cual se construyeron 7 series mensuales. El número de registros no equivale al número de viajeros. Con el Excel local se reprodujeron los indicadores de entrenamiento y se calcularon los KPIs, el calendario y el crecimiento; las métricas de modelos siguen pendientes de reproducción. La base contiene 51,272 valores fraccionarios en `Viajero`, conservados sin redondear y cuyo significado requiere confirmación. La trazabilidad inicial está en `docs/validacion_evidencia.md` y los resultados actuales en `docs/resultados_insumos.md`.
 
 ### KPIs propuestos
 
 | KPI | Cifra | Origen en el Laboratorio 1 | Estado |
 | --- | --- | --- | --- |
-| Pico anual prepandemia (2019) | ≈ 4.7 millones de viajeros | Barras anuales del EDA | Leído del gráfico; calcular el valor exacto con el script |
-| Caída 2019→2020 (serie general) | −73.0% | Tabla de indicadores, PDF p. 25 | Reportado y redondeado a un decimal; pendiente de reproducir |
-| Recuperación en 2022 | ≈ 4.3 millones de viajeros (≈ 92% del pico de 2019) | Barras anuales del EDA | Leído del gráfico; calcular el valor exacto con el script |
+| Pico anual prepandemia (2019) | 4.692 millones | Suma mensual del Excel | Calculado: 4,691,820.20, mostrado a dos decimales |
+| Caída 2019→2020 (serie general) | −73.0% | Sumas anuales del Excel y PDF p. 25 | Reproducido: −73.0096% |
+| Recuperación en 2022 | 4.316 millones (91.99% del nivel de 2019) | Sumas anuales del Excel | Calculado: 4,316,164.40, mostrado a dos decimales |
 | Error medio del mejor modelo (serie general) | 97,590 viajeros por mes (Prophet, MAE) | Comparación de modelos, PDF p. 12 | Reportado con dos decimales (97,589.88); pendiente de reproducir |
 
 ### Comparación de modelos en la serie general
@@ -144,12 +144,13 @@ La fuente analítica es el Laboratorio 1 (Grupo 6, 26 de julio de 2026): una bas
 | Vía Terrestre | 0.387 | 0.818 | 0.517 | −73.6% |
 | El Salvador | 0.318 | 0.763 | 0.548 | −74.9% |
 
-Según los indicadores publicados, Guatemala tiene la mayor fuerza estacional (0.793) y fuerza de tendencia (0.928); Vía Marítima tiene la mayor volatilidad relativa (CV 0.868); El Salvador presenta la mayor caída 2019→2020 (−74.9%) entre las seis series con ese indicador disponible. Son comparaciones descriptivas de las ventanas de entrenamiento originales, no de un periodo común. **La pregunta de mayor crecimiento sigue pendiente:** la fuerza de tendencia mide cuánto domina ese componente frente al residuo, no su dirección ni su tasa de crecimiento. Se calculará una medida explícita de crecimiento sobre un periodo común y se distinguirá de los indicadores originales.
+Los indicadores originales se reprodujeron a la precisión publicada: Guatemala tiene la mayor fuerza estacional (0.793) y fuerza de tendencia (0.928); Vía Marítima tiene la mayor volatilidad relativa (CV 0.868); El Salvador presenta la mayor caída 2019→2020 (−74.9%) entre las seis series con ese indicador disponible. Son comparaciones descriptivas de las ventanas originales, no de un periodo común. **Mayor crecimiento:** El Salvador, con CAGR de 12.0810% entre los totales completos de 2009 y 2019. Esta es una medida adicional explícita, no la fuerza de tendencia. Al igualar la ventana de estacionalidad a 2009–2019, Estados Unidos tiene la mayor fuerza estacional (0.918); se deben distinguir ambos rankings y sus periodos.
 
 ### Cuidados para que los gráficos no mientan
 
 - **2026 está incompleto.** La barra anual de 2026 (≈ 1.68 millones) cubre solo enero a junio. Se rotulará «ene–jun 2026» o se comparará con el mismo semestre de otros años.
-- **Guatemala no es comparable en todo.** Su entrenamiento termina en septiembre de 2018, antes de la pandemia, así que su caída es N/D en la tabla original y sus indicadores de entrenamiento no incluyen 2020. Esto no significa que la serie completa termine en 2018: el gráfico de prueba incluye la pandemia. Se comprobará la cobertura completa al cargar el Excel. La pregunta «más golpeada» se responde por ahora solo entre las seis series con caída publicada, y así se rotula.
+- **Guatemala no es comparable en todo.** El Excel confirma que su serie completa termina en diciembre de 2022 y su entrenamiento en septiembre de 2018. Su caída es N/D en la tabla original y sus indicadores de entrenamiento no incluyen 2020. No se extiende hasta 2026 con ceros. La pregunta «más golpeada» se responde entre las seis series con caída publicada, y así se rotula.
+- **Imputación explícita.** Para reproducir el Lab 1 se completaron con cero 5 meses ausentes de El Salvador, 5 de Estados Unidos y 27 de Vía Marítima en las series completas. Esto reproduce el procedimiento, no demuestra ausencia real de viajeros; la lista se conserva en los resultados locales. Los indicadores afectados deben interpretarse con esa limitación.
 - **Las caídas son parecidas.** Las series comparables cayeron entre −72% y −75%, salvo Vía Marítima (−67.9%). El Salvador (−74.9%) apenas supera a las demás, por lo que no se presentará como una diferencia dramática.
 - **El error depende de la escala.** El MAE de Vía Marítima (858) y el de la serie general (97,590) no se pueden poner en un mismo gráfico sin normalizar. Dentro de cada serie sí son comparables; entre series se usará el error relativo a la media mensual, que se calcula con el script.
 - **«Casi el doble» no es exacto.** El Laboratorio 1 dice que la volatilidad de Vía Marítima (0.868) es casi el doble que la siguiente, pero El Salvador tiene 0.548, y 0.868 es alrededor de 58% más. Se mostrará el valor, no esa frase.

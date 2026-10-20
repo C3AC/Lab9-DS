@@ -57,4 +57,7 @@ ceros$viajero[ceros$ano == 2010 & ceros$mes_cod == 2] <- 0
 observado <- preparar_series(ceros)
 stopifnot(observado$series$General$mensual$viajeros[14] == 0,
           !observado$series$General$mensual$imputado_cero[14])
+fracciones <- datos
+fracciones$viajero <- fracciones$viajero + 0.25
+stopifnot(all(preparar_series(fracciones)$series$General$mensual$viajeros == 60.75))
 cat("Pruebas de preparacion: OK (datos sinteticos).\n")

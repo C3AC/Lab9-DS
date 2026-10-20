@@ -34,7 +34,7 @@ El directorio de salida predeterminado es `salidas/`, excluido de Git. Se puede 
 - `meses_imputados.csv`: meses completados con cero, si se autorizaron explícitamente.
 - `sesion_R.txt`: versiones de R y paquetes para documentar la ejecución.
 
-El script suma la cantidad `viajero`, no el número de filas. Exige columnas válidas, categorías presentes, conteos no negativos, ausencia de duplicados exactos y al menos 24 meses de entrenamiento por serie. Los nombres de columnas del Excel se normalizan con `janitor::clean_names()`, igual que en el laboratorio original.
+El script suma la cantidad `viajero`, no el número de filas. Exige columnas válidas, categorías presentes, valores no negativos, ausencia de duplicados exactos y al menos 24 meses de entrenamiento por serie. Conserva los valores fraccionarios que contiene el Excel académico, sin redondearlos, y registra cuántos hay en la procedencia. Su significado debe confirmarse con quien proporcionó la base antes de interpretarlos como conteos individuales. Los nombres de columnas del Excel se normalizan con `janitor::clean_names()`, igual que en el laboratorio original.
 
 Los meses internos sin registros detienen la ejecución. Solo después de revisar la fuente, se puede reproducir la imputación a cero del laboratorio original mediante:
 
@@ -52,6 +52,21 @@ Rscript scripts/preparar_series.R --help
 ```
 
 Este paso prepara los datos para los cálculos y gráficos posteriores; todavía no calcula KPIs, entrena modelos ni diseña la infografía. Las pruebas sintéticas no demuestran que las cifras del Excel coincidan con las del PDF.
+
+## Cálculo de Insumos
+
+Después de preparar las series, ejecutar:
+
+```bash
+Rscript scripts/calcular_insumos.R
+Rscript tests/test_calcular_insumos.R
+```
+
+El script usa `salidas/series_preparadas.rds`, sin dependencias adicionales a R base. Acepta otro directorio como argumento. Genera `insumos.rds` y tablas CSV locales: `kpis`, `anuales`, `semestres`, `indicadores`, `estacionalidad` y `crecimiento`, además de `sesion_insumos_R.txt`.
+
+Los indicadores y los 12 componentes estacionales se calculan tanto para las ventanas originales de entrenamiento como para enero de 2009 a diciembre de 2019. No se mezclan sus rankings. El crecimiento se mide con la tasa anual compuesta (CAGR) entre los totales completos de 2009 y 2019, un intervalo común prepandemia de diez años; no se infiere de la fuerza de tendencia. Los totales anuales incluyen la cantidad de meses disponibles y los imputados. La tabla de semestres permite comparar enero-junio sin confundir 2026 parcial con años completos.
+
+Para reproducir el Lab 1 con este Excel fue necesario usar `--completar-ceros`: hay meses sin registros por segmento. Esto reproduce una decisión analítica, no demuestra que esos meses tuvieran flujo nulo. Ver resultados y limitaciones en `docs/resultados_insumos.md`. Todavía no se entrenan modelos ni se generan gráficos.
 
 ## Notas
 

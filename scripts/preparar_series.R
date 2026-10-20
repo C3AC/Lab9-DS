@@ -20,8 +20,8 @@ preparar_series <- function(datos, completar_ceros = FALSE) {
           datos$mes_cod < 1 | datos$mes_cod > 12)) {
     stop("Anos o meses invalidos.")
   }
-  if (any(datos$viajero < 0 | datos$viajero != floor(datos$viajero))) {
-    stop("viajero debe contener conteos enteros no negativos.")
+  if (any(datos$viajero < 0)) {
+    stop("viajero debe contener valores no negativos.")
   }
   for (columna in c("pais", "via")) {
     if (!is.character(datos[[columna]]) || any(!nzchar(trimws(datos[[columna]])))) {
@@ -113,7 +113,8 @@ main <- function(args = commandArgs(trailingOnly = TRUE)) {
   resultado <- preparar_series(datos, completar_ceros)
   resultado$procedencia <- list(
     archivo = basename(entrada), md5 = unname(tools::md5sum(entrada)),
-    filas = nrow(datos), train_size = 0.7, completar_ceros = completar_ceros,
+    filas = nrow(datos), valores_fraccionarios = sum(datos$viajero != floor(datos$viajero)),
+    train_size = 0.7, completar_ceros = completar_ceros,
     generado_utc = format(Sys.time(), tz = "UTC", usetz = TRUE)
   )
   if (!dir.exists(salida) && !dir.create(salida, recursive = TRUE)) {

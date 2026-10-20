@@ -4,7 +4,7 @@
 
 Se contrastaron las instrucciones del Laboratorio 9, `docs/documento_explicacion.md`, `Laboratorio_1_completo.Rmd` y las 26 paginas de `Laboratorio_1_Series_de_Tiempo_Grupo6-1.pdf`.
 
-Esta es una validacion documental y del procedimiento, no una reproduccion numerica. El archivo `Base_Migracion_2009-2026jun.xlsx` no esta disponible en el repositorio. No se reconstruiran series ni intervalos leyendo posiciones de pixeles de los graficos. El Laboratorio 1 original se conserva sin modificaciones.
+Esta validacion inicial fue documental y del procedimiento, realizada antes de disponer del Excel. Posteriormente se incorporo `Base_Migracion_2009-2026jun.xlsx` como archivo local excluido de Git y se reprodujeron los indicadores del entrenamiento, los KPIs y la estacionalidad. El estado actualizado y sus limitaciones estan en `docs/resultados_insumos.md`; las metricas de modelos e intervalos siguen pendientes. Las columnas de pendientes de esta auditoria describen el estado inicial. No se reconstruyen series leyendo pixeles de los graficos. El Laboratorio 1 original se conserva sin modificaciones.
 
 ## Cifras cotejadas
 
